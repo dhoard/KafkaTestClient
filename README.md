@@ -5,6 +5,10 @@ Simple Kafka test client to publish a JSON message (as a String) to a topic.
 ## Build
 
 ```
+git clone https://github.com/dhoard/KafkaTestClient
+
+cd KafkaTestClient
+
 mvn clean package
 ```
 
