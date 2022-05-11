@@ -30,3 +30,5 @@ acks=all
 ```
 java -jar target/KafkaTestClient.jar test.properties
 ```
+
+# THIS CODE IS UNSUPPORTED - USE AT YOUR OWN RISK
