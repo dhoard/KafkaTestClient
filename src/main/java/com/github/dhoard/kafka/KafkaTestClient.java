@@ -7,16 +7,12 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.TimeZone;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import com.google.gson.JsonObject;
-import org.apache.kafka.clients.producer.Callback;
+
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +42,22 @@ public class KafkaTestClient {
         String topicName = properties.getProperty("topic.name");
         LOGGER.info("topic.name = [" + topicName + "]");
 
+        int messageCount = 1;
+
+        if (properties.containsKey("message.count")) {
+            try {
+                messageCount = Integer.parseInt(properties.getProperty("message.count"));
+            } catch (NumberFormatException e) {
+                // DO NOTHING
+            }
+        }
+
+        if (messageCount < 1) {
+            messageCount = 1;
+        }
+
+        LOGGER.info("message.count = [" + messageCount + "]");
+
         properties.remove("topic.name");
         properties.remove("schema.registry.url");
         properties.remove("basic.auth.user.info");
@@ -59,31 +71,41 @@ public class KafkaTestClient {
 
         properties.setProperty("max.block.ms", "5000");
 
-        String id = UUID.randomUUID().toString();
-        String data = randomString(10);
-        String timestamp = toISOTimestamp(System.currentTimeMillis(), TimeZone.getDefault().getID());
-
-        JsonObject jsonObject = new JsonObject();
-        jsonObject.addProperty("id", id);
-        jsonObject.addProperty("source", KafkaTestClient.class.getName());
-        jsonObject.addProperty("data", data);
-        jsonObject.addProperty("timestamp", timestamp);
-
-        LOGGER.info("message = [" + jsonObject.toString() + "]");
-
         KafkaProducer<String, String> kafkaProducer = null;
 
         try {
-            ProducerRecord<String, String> producerRecord = new ProducerRecord(topicName, id, jsonObject.toString());
-
             kafkaProducer = new KafkaProducer<>(properties);
-            kafkaProducer.send(producerRecord, (recordMetadata, e) -> {
-                if (e != null) {
-                    LOGGER.error("ERROR", e);
-                } else {
-                    LOGGER.info("SUCCESS");
+
+            for (int i = 0; i < messageCount; i++) {
+                String id = UUID.randomUUID().toString();
+                String data = randomString(10);
+                String timestamp = toISOTimestamp(System.currentTimeMillis(), TimeZone.getDefault().getID());
+
+                JsonObject jsonObject = new JsonObject();
+                jsonObject.addProperty("id", id);
+                jsonObject.addProperty("source", KafkaTestClient.class.getName());
+                jsonObject.addProperty("data", data);
+                jsonObject.addProperty("timestamp", timestamp);
+
+                LOGGER.info("message = [" + jsonObject.toString() + "]");
+
+                ProducerRecord<String, String> producerRecord = new ProducerRecord(topicName, id, jsonObject.toString());
+                kafkaProducer.send(producerRecord, (recordMetadata, e) -> {
+                    if (e != null) {
+                        LOGGER.error("error producing message", e);
+                    } else {
+                        LOGGER.info("successfully produced message");
+                    }
+                }).get();
+
+                if (messageCount > 1) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        // DO NOTHING
+                    }
                 }
-            }).get();
+            }
         } catch (Throwable t) {
             //LOGGER.error("ERROR", t);
         } finally {

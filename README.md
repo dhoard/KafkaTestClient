@@ -2,13 +2,16 @@
 
 Simple (single executable jar) Kafka test client to publish a JSON message (as a String) to a topic.
 
-## Build
+## Clone
 
 ```
 git clone https://github.com/dhoard/KafkaTestClient
+```
 
+## Build
+
+```
 cd KafkaTestClient
-
 mvn clean package
 ```
 
@@ -20,6 +23,7 @@ Example `test.properties`:
 
 ```
 topic.name=TEST
+message.count=1
 bootstrap.servers=<bootsrap url>
 security.protocol=SASL_SSL
 sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='<username or api key>' password='<password or api secret>';
@@ -32,7 +36,7 @@ acks=all
 ## Run the test client
 
 ```
-java -jar target/KafkaTestClient.jar test.properties
+java -jar target/KafkaTestClient-1.0.0.jar test.properties
 ```
 
 # THIS CODE IS UNSUPPORTED
