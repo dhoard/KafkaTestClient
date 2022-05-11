@@ -1,6 +1,6 @@
 # KafkaTestClient
 
-Simple Kafka test client to publish a JSON message (as a String) to a topic.
+Simple (single executable jar) Kafka test client to publish a JSON message (as a String) to a topic.
 
 ## Build
 
