@@ -115,15 +115,11 @@ public class KafkaTestClient {
         }
     }
 
-    private static String getISOTimestamp() {
-        return toISOTimestamp(System.currentTimeMillis(), "America/New_York");
-    }
-
     private static String toISOTimestamp(long milliseconds, String timeZoneId) {
         return Instant.ofEpochMilli(milliseconds).atZone(ZoneId.of(timeZoneId)).toString().replace("[" + timeZoneId + "]", "");
     }
 
-    private String randomString(int length) {
+    private static String randomString(int length) {
         return RANDOM.ints(48, 122 + 1)
             .filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
             .limit(length)
