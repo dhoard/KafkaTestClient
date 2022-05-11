@@ -16,7 +16,7 @@ Example `test.properties`:
 
 ```
 topic.name=TEST
-bootstrap.servers=<bootrap url>
+bootstrap.servers=<bootsrap url>
 security.protocol=SASL_SSL
 sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='<username or api key>' password='<password or api secret>';
 sasl.mechanism=PLAIN
