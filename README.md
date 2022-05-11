@@ -1,4 +1,4 @@
-# KafkaCTestClient
+# KafkaTestClient
 
 Simple Kafka test client to publish a JSON message (as a String) to a topic.
 
