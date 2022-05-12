@@ -3,16 +3,21 @@ package com.github.dhoard.kafka;
 import java.io.FileReader;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 
 import com.google.gson.JsonObject;
 
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +25,6 @@ import org.slf4j.LoggerFactory;
 public class KafkaTestClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaTestClient.class);
-
     private static final Random RANDOM = new Random();
 
     public static void main(String[] args) throws Exception {
@@ -39,7 +43,12 @@ public class KafkaTestClient {
         Properties properties = new Properties();
         properties.load(new FileReader(filename));
 
-        String topicName = properties.getProperty("topic.name");
+        String topicName = "KafkaTestClient";
+
+        if (properties.containsKey("topic.name")) {
+            topicName = properties.getProperty("topic.name");
+        }
+
         LOGGER.info("topic.name = [" + topicName + "]");
 
         int messageCount = 1;
@@ -48,7 +57,7 @@ public class KafkaTestClient {
             try {
                 messageCount = Integer.parseInt(properties.getProperty("message.count"));
             } catch (NumberFormatException e) {
-                // DO NOTHING
+                LOGGER.error("Invalid 'message.count'", e);
             }
         }
 
@@ -58,6 +67,7 @@ public class KafkaTestClient {
 
         LOGGER.info("message.count = [" + messageCount + "]");
 
+        // Remove properties not used by the KafkaProducer
         properties.remove("topic.name");
         properties.remove("schema.registry.url");
         properties.remove("basic.auth.user.info");
@@ -70,49 +80,104 @@ public class KafkaTestClient {
         properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
                 StringSerializer.class.getName());
 
-        properties.setProperty("max.block.ms", "5000");
+        if (!properties.containsKey("max.block.ms")) {
+            properties.setProperty("max.block.ms", "5000");
+        }
 
+        List<JsonObject> jsonObjectList = new ArrayList<>();
+        for (int i = 0; i < messageCount; i++) {
+            String id = UUID.randomUUID().toString();
+            String data = randomString(10);
+            String timestamp = toISOTimestamp(System.currentTimeMillis(), TimeZone.getDefault().getID());
+
+            JsonObject jsonObject = new JsonObject();
+            jsonObject.addProperty("id", id);
+            jsonObject.addProperty("source", KafkaTestClient.class.getName());
+            jsonObject.addProperty("data", data);
+            jsonObject.addProperty("timestamp", timestamp);
+
+            jsonObjectList.add(jsonObject);
+        }
+
+        ExtendedCallback extendedCallback = new ExtendedCallback(messageCount);
         KafkaProducer<String, String> kafkaProducer = null;
 
         try {
             kafkaProducer = new KafkaProducer<>(properties);
 
-            for (int i = 0; i < messageCount; i++) {
-                String id = UUID.randomUUID().toString();
-                String data = randomString(10);
-                String timestamp = toISOTimestamp(System.currentTimeMillis(), TimeZone.getDefault().getID());
+            for (JsonObject jsonObject : jsonObjectList) {
+                ProducerRecord<String, String> producerRecord =
+                        new ProducerRecord<>(
+                                topicName,
+                                jsonObject.get("id").getAsString(),
+                                jsonObject.toString());
 
-                JsonObject jsonObject = new JsonObject();
-                jsonObject.addProperty("id", id);
-                jsonObject.addProperty("source", KafkaTestClient.class.getName());
-                jsonObject.addProperty("data", data);
-                jsonObject.addProperty("timestamp", timestamp);
+                LOGGER.info("Producing message = [" + jsonObject.toString() + "]");
 
-                LOGGER.info("message = [" + jsonObject + "]");
-
-                ProducerRecord<String, String> producerRecord = new ProducerRecord(topicName, id, jsonObject.toString());
-                kafkaProducer.send(producerRecord, (recordMetadata, e) -> {
-                    if (e != null) {
-                        LOGGER.error("error producing message", e);
-                    } else {
-                        LOGGER.info("successfully produced message");
-                    }
-                }).get();
-
-                if (messageCount > 1) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        // DO NOTHING
-                    }
-                }
+                kafkaProducer.send(producerRecord, extendedCallback);
             }
+
+            // Wait for all messages to be attempted to be produced
+            extendedCallback.await();
         } catch (Throwable t) {
-            //LOGGER.error("ERROR", t);
+            LOGGER.error("Exception producing messages", t);
         } finally {
-            if (null != kafkaProducer) {
+            if (kafkaProducer != null) {
                 kafkaProducer.close();
             }
+
+            LOGGER.info("Successfully produced " + extendedCallback.getSuccessCount() + " message(s)");
+
+            if (extendedCallback.getSuccessCount() != messageCount) {
+                System.exit(1);
+            }
+        }
+    }
+
+    class ExtendedCallback implements Callback {
+
+        private CountDownLatch countDownLatch;
+        private int successCount;
+
+        public ExtendedCallback(int count) {
+            this.countDownLatch = new CountDownLatch(count);
+            this.successCount = 0;
+        }
+
+        public void await() throws InterruptedException {
+            this.countDownLatch.await();
+        }
+
+        public int getSuccessCount() {
+            return this.successCount;
+        }
+
+        @Override
+        public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+            if (e != null) {
+                LOGGER.error("Exception producing message", e);
+            } else {
+                this.successCount++;
+            }
+
+            this.countDownLatch.countDown();
+        }
+    }
+
+    class Holder<T> {
+
+        public T value;
+
+        public Holder(T value) {
+            this.value = value;
+        }
+
+        public String toString() {
+            if (this.value != null) {
+                return this.value.toString();
+            }
+
+            return null;
         }
     }
 
