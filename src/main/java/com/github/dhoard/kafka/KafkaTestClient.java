@@ -28,8 +28,8 @@ public class KafkaTestClient {
     }
 
     public void execute(String[] args) throws Exception {
-        if ((args == null) && (args.length != 1)) {
-            LOGGER.info("Usage: java -jar <jar> <properties filename>");
+        if ((args == null) || (args.length != 1)) {
+            System.out.println("Usage: java -jar <jar> <properties filename>");
             System.exit(1);
         }
 
@@ -88,7 +88,7 @@ public class KafkaTestClient {
                 jsonObject.addProperty("data", data);
                 jsonObject.addProperty("timestamp", timestamp);
 
-                LOGGER.info("message = [" + jsonObject.toString() + "]");
+                LOGGER.info("message = [" + jsonObject + "]");
 
                 ProducerRecord<String, String> producerRecord = new ProducerRecord(topicName, id, jsonObject.toString());
                 kafkaProducer.send(producerRecord, (recordMetadata, e) -> {
