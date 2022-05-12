@@ -62,6 +62,7 @@ public class KafkaTestClient {
         properties.remove("schema.registry.url");
         properties.remove("basic.auth.user.info");
         properties.remove("session.timeout.ms");
+        properties.remove("message.count");
 
         properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
                 StringSerializer.class.getName());
